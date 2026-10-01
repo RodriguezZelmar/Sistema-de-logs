@@ -39,6 +39,7 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 | `Logger` | `LoggingLibrary` | Default `ILogger`: filters by minimum level, timestamps and forwards to one `ILogSink`. |
 | `LoggerOptions` | `LoggingLibrary` | Settings for a file logger, with defaults and `Validate()`. |
 | `LogFormat` | `LoggingLibrary` | `Json` or `Text`; selects the formatter. |
+| `LogWriteException` | `LoggingLibrary` | Reports an entry the sink could not write, with the cause. |
 | `ILogSink` | `LoggingLibrary.Sinks` | A destination for entries. Must be thread-safe. |
 | `ILogFormatter` | `LoggingLibrary.Formatting` | Turns a `LogEntry` into one line of text (no trailing line break). |
 | `JsonLogFormatter` | `LoggingLibrary.Formatting` | Single-line JSON object per entry (JSON Lines / NDJSON). |
@@ -87,10 +88,11 @@ logger.Error("Database connection failed", ex)
   └─ LoggerExtensions.Error  →  Logger.Log(Error, message, ex)
        ├─ IsEnabled(Error)?  no → return (nothing allocated)
        ├─ new LogEntry(TimeProvider.GetUtcNow(), Error, message, ex)
-       └─ ILogSink.Write(entry)                       (FileLogSink)
-            ├─ ILogFormatter.Format(entry) → string   (outside the lock)
-            ├─ UTF-8 encode + "\n"
-            └─ lock { rotate if needed; write bytes; flush }
+       ├─ ILogSink.Write(entry)                       (FileLogSink)
+       │    ├─ ILogFormatter.Format(entry) → string   (outside the lock)
+       │    ├─ UTF-8 encode + "\n"
+       │    └─ lock { rotate if needed; write bytes; flush }
+       └─ on exception → OnWriteError(new LogWriteException(entry, cause))
 ```
 
 ### Log levels
@@ -274,8 +276,58 @@ writing the same file are not supported: the file is opened with
 there is no conflict unless a file imports both namespaces; in that case use an
 alias, e.g. `using LogLevel = LoggingLibrary.LogLevel;`.
 
+## Error handling
+
+A logging library has two conflicting goals: logging must not take the
+application down, and failures must not silently lose information. The
+policy depends on *when* the error happens.
+
+| Situation | When | Behavior |
+|---|---|---|
+| Invalid option (empty path, negative size, undefined level...) | `new Logger(options)` | Throws `ArgumentException` naming the option. |
+| Invalid path syntax | `new Logger(options)` | Throws `ArgumentException`. |
+| Directory cannot be created | `new Logger(options)` | Throws `IOException` / `UnauthorizedAccessException`. |
+| File cannot be opened (locked, no permission, path is a directory) | `new Logger(options)` | Throws `IOException` / `UnauthorizedAccessException`. |
+| Write fails (disk full, I/O error) | `Log(...)` | Reported to the write-error handler; `Log` does not throw. |
+| Rotation fails (archive locked, file deleted...) | `Log(...)` | Same: reported, the next write retries. |
+| Logging after `Dispose()` | `Log(...)` | Reported (`ObjectDisposedException` as cause). |
+| `null` message | `Log(...)` | Throws `ArgumentNullException` (programming error). |
+
+**At startup: fail fast.** Configuration and file-system problems found
+while creating the logger are thrown to the caller. They are usually
+deployment mistakes, and the application can decide whether to run without
+logs. Because the file is opened in the constructor, these problems surface
+here and not later.
+
+**While running: never throw, never be silent.** `Logger.Log` catches
+exceptions from the sink and passes a `LogWriteException` to the write-error
+handler. The exception carries the cause (`InnerException`) and the entry
+that was not written (`Entry`), so nothing is lost without a trace.
+
+- The default handler prints the cause and the full entry (as a text line,
+  including its exception) to **standard error**. Console apps, containers
+  and service managers usually collect stderr, so the entry still ends up
+  somewhere visible.
+- `LoggerOptions.OnWriteError` replaces the default, e.g. to count failures,
+  write to a fallback location, or alert. A handler that throws makes `Log`
+  throw, which gives a strict "fail on log errors" mode:
+  `OnWriteError = error => throw error`.
+- If standard error itself fails, the default handler gives up silently;
+  there is no channel left.
+
+**Recovery.** After a failed write `FileLogSink` closes its stream; the next
+write reopens the file (and retries a pending rotation), so a transient
+problem does not disable logging for the rest of the process. The failed
+entry itself is not retried: it was handed to the handler.
+
+**Known trade-off.** If rotation fails, entries are reported rather than
+appended past the size limit. Writing them anyway would keep them in the file
+but break the size guarantee and make the failure invisible, so the explicit
+report was preferred.
+
+Programming errors (`null` message or sink) always throw, as in any .NET API.
+
 ## Planned
 
-**Planned.** An explicit policy for write errors, and loading options from
-`IConfiguration`. Their sections will be written together with their
-implementation.
+**Planned.** Loading options from `IConfiguration`. Its section will be
+written together with its implementation.

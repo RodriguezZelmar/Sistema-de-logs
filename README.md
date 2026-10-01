@@ -51,6 +51,7 @@ and flushed immediately. Application code should depend on `ILogger`, which
 | `Format` | `Json` | `Json` (JSON Lines) or `Text`. |
 | `MaxFileSizeBytes` | `10_000_000` | Size at which the file is rotated. |
 | `MaxRetainedFiles` | `5` | Rotated files kept besides the active one. |
+| `OnWriteError` | `null` (stderr) | Receives entries that could not be written. |
 
 Invalid options throw `ArgumentException` when the logger is created. Details
 in [docs/configuration.md](docs/configuration.md).
@@ -118,6 +119,22 @@ Entries are never split between files. See
 [docs/architecture.md](docs/architecture.md#rotation-strategy) for the exact
 rules.
 
+## Error handling
+
+- **Logging exceptions:** `logger.Error("message", exception)` records the
+  exception's type, message, stack trace and inner exceptions.
+- **Startup problems** (invalid options, directory cannot be created, file
+  locked or not writable) throw from `new Logger(options)`, so they are
+  found immediately.
+- **Problems while running** (disk full, rotation blocked) never make a
+  `Log` call throw. They are passed, together with the entry that was not
+  written, to `LoggerOptions.OnWriteError`; by default both are printed to
+  standard error so the information is not silently lost. The next write
+  retries the file.
+
+Full table of cases in
+[docs/architecture.md](docs/architecture.md#error-handling).
+
 ## Thread safety
 
 A single `Logger` instance can be shared by all threads. `FileLogSink`
@@ -169,7 +186,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] Configuration (`LoggerOptions`)
 - [x] Size-based file rotation
 - [x] Thread safety verification
-- [ ] Write-error handling policy
+- [x] Write-error handling policy
 - [ ] External configuration (`IConfiguration`)
 - [ ] Sample application
 - [ ] NuGet packaging

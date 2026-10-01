@@ -50,6 +50,20 @@ public sealed class LoggerOptions
     /// </summary>
     public int MaxRetainedFiles { get; set; } = 5;
 
+    /// <summary>
+    /// Called when an entry cannot be written (disk full, file locked during
+    /// rotation...). Logging calls never throw because of such errors; the
+    /// failure and the unwritten entry are passed here instead. When
+    /// <see langword="null"/> (the default) they are written to the standard
+    /// error stream. A handler that throws makes the logging call throw.
+    /// </summary>
+    /// <remarks>
+    /// Called on the thread that was logging, possibly from several threads
+    /// at once, so the handler must be thread-safe. It cannot be set from a
+    /// configuration file.
+    /// </remarks>
+    public Action<LogWriteException>? OnWriteError { get; set; }
+
     /// <summary>Checks that every option has a usable value.</summary>
     /// <exception cref="ArgumentException">An option is invalid. The message names the option.</exception>
     public void Validate()

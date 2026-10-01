@@ -27,6 +27,23 @@ working configuration.
 | `MaxFileSizeBytes` | `long` | `10_000_000` (10 MB) | Size limit of the active file. A write that would exceed it rotates the file first. |
 | `MaxRetainedFiles` | `int` | `5` | Rotated files kept besides the active one (`application.1.log` newest ... `application.N.log` oldest). The oldest is deleted when a new archive would exceed the count. `0` keeps no history. |
 
+| `OnWriteError` | `Action<LogWriteException>?` | `null` (print to stderr) | Receives write failures (disk full, rotation blocked, logging after dispose) together with the unwritten entry. Logging calls do not throw because of them unless this handler throws. Code only; cannot come from a configuration file. |
+
+### Write-error handler example
+
+```csharp
+var options = new LoggerOptions
+{
+    OnWriteError = error =>
+        File.AppendAllText("fallback.log", $"{error.Message}: {error.Entry.Message}\n"),
+};
+```
+
+The handler runs on the thread that was logging, possibly on several threads
+at once, so it must be thread-safe. To make logging failures throw instead:
+`OnWriteError = error => throw error`. See
+[architecture.md](architecture.md#error-handling) for the full policy.
+
 ### Rotation example
 
 ```csharp
