@@ -6,6 +6,28 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
+  <!-- NuGet package metadata (dotnet pack). -->
+  <PropertyGroup>
+    <PackageId>LoggingLibrary</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>UnaRamita</Authors>
+    <Description>Small, thread-safe logging library: log levels, JSON Lines output, file logging with size-based rotation, and configuration from code or IConfiguration.</Description>
+    <PackageTags>logging;logger;json;ndjson;jsonlines;file;rotation</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Set when the repository is published, e.g. https://github.com/<user>/<repo>:
+    <RepositoryUrl></RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl></PackageProjectUrl>
+    -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12" />
   </ItemGroup>

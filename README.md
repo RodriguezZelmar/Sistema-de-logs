@@ -223,6 +223,35 @@ To collect code coverage:
 dotnet test --collect:"XPlat Code Coverage"
 ```
 
+## Packaging
+
+The library is configured as a NuGet package (it is not published to
+nuget.org). Only `src/LoggingLibrary` is packable; the tests and the sample
+set `IsPackable=false`.
+
+```bash
+dotnet pack -c Release -o ./artifacts
+```
+
+This produces `LoggingLibrary.0.1.0.nupkg`, containing the assembly, its XML
+documentation (IntelliSense) and this README, plus a `.snupkg` symbols
+package for debugging. Metadata (`PackageId`, `Version`, `Authors`,
+`Description`, `PackageTags`, MIT license) is in
+[`LoggingLibrary.csproj`](src/LoggingLibrary/LoggingLibrary.csproj).
+`RepositoryUrl` is left commented out until the repository is published.
+
+To use the package from another project without publishing it, add the
+output folder as a package source:
+
+```bash
+dotnet add package LoggingLibrary --version 0.1.0 --source ./artifacts
+```
+
+NuGet caches packages by version, so when repacking changes, increase
+`Version` (or clear the `logginglibrary` folder in the global packages cache).
+Before publishing to nuget.org the `PackageId` would need a unique prefix,
+since `LoggingLibrary` is a generic name.
+
 ## Project structure
 
 ```text
@@ -257,7 +286,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] External configuration (`IConfiguration`)
 - [x] Complete test suite
 - [x] Sample application
-- [ ] NuGet packaging
+- [x] NuGet packaging
 - [ ] Final review of architecture, docs and code quality
 
 See [docs/architecture.md](docs/architecture.md) for design decisions.
