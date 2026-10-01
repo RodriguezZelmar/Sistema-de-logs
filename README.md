@@ -3,7 +3,8 @@
 A small, reusable logging library for C#/.NET.
 
 > **Status: early development.** The core API (levels, filtering, sink
-> abstraction) exists, but there is no built-in output yet. This README only
+> abstraction) and the JSON/text formatters exist, but there is no built-in
+> sink (output destination) yet. This README only
 > describes what actually exists; planned work is listed under
 > [Roadmap](#roadmap).
 
@@ -57,6 +58,21 @@ if (logger.IsEnabled(LogLevel.Debug))
 }
 ```
 
+## Output formats
+
+`JsonLogFormatter` produces one JSON object per line (JSON Lines / NDJSON):
+
+```json
+{"timestamp":"2026-10-01T20:30:15.432Z","level":"Info","message":"Application started"}
+{"timestamp":"2026-10-01T20:30:16.101Z","level":"Error","message":"Database connection failed","exception":{"type":"System.InvalidOperationException","message":"Connection refused","stackTrace":"   at ..."}}
+```
+
+`exception` is present only when an exception was logged; it also contains
+`innerException` when there is one. `TextLogFormatter` produces
+human-readable lines: `2026-10-01T20:30:15.432Z [Info] Application started`.
+
+Timestamps are always UTC, ISO 8601, millisecond precision.
+
 ## Requirements
 
 - .NET SDK 10 (LTS). The exact SDK band is pinned in [`global.json`](global.json).
@@ -96,7 +112,7 @@ Each stage is built, tested, documented and committed separately.
 
 - [x] Solution and project structure
 - [x] `LogLevel`, `LogEntry`, `ILogger`, `ILogSink` and minimum-level filtering
-- [ ] JSON (NDJSON) and plain-text formatting
+- [x] JSON (NDJSON) and plain-text formatting
 - [ ] File sink
 - [ ] Configuration (`LoggerOptions`)
 - [ ] Size-based file rotation

@@ -38,6 +38,9 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 | `LoggerExtensions` | `LoggingLibrary` | `Debug`, `Info`, `Warning`, `Error`, `Critical` shortcuts over `ILogger.Log`. |
 | `Logger` | `LoggingLibrary` | Default `ILogger`: filters by minimum level, timestamps and forwards to one `ILogSink`. |
 | `ILogSink` | `LoggingLibrary.Sinks` | A destination for entries. Must be thread-safe. |
+| `ILogFormatter` | `LoggingLibrary.Formatting` | Turns a `LogEntry` into one line of text (no trailing line break). |
+| `JsonLogFormatter` | `LoggingLibrary.Formatting` | Single-line JSON object per entry (JSON Lines / NDJSON). |
+| `TextLogFormatter` | `LoggingLibrary.Formatting` | Human-readable `timestamp [Level] message` lines. |
 
 ### Why these abstractions
 
@@ -49,6 +52,9 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
   from *where it goes*. A new destination (console, HTTP...) is a new
   `ILogSink`; `Logger` does not change. Only the sinks that are actually used
   are implemented.
+- **`ILogFormatter`** separates *how an entry looks* from *where it is
+  written*. There are two real implementations (JSON and text), selected by
+  configuration, and a text-based sink only needs the interface.
 - **`LogEntry`** is a sealed class with read-only properties instead of a
   positional record, so fields (for example structured properties) can be
   added later without breaking callers.
@@ -91,10 +97,38 @@ ambiguity when servers run in different time zones and around daylight-saving
 changes. `TimeProvider` is the standard .NET clock abstraction; injecting it
 lets tests use a fixed time.
 
+Formatters write the timestamp as ISO 8601 UTC with millisecond precision and
+a `Z` suffix (`2026-10-01T20:30:15.432Z`), using the invariant culture. The
+string always has the same length and sorts chronologically as text.
+
+### JSON format
+
+`JsonLogFormatter` writes each entry as one JSON object on one line (JSON
+Lines / NDJSON), never a single array for the whole file. This lets a file be
+appended to without rewriting it, read line by line without loading it
+whole, and still be parsed if the last line was cut off by a crash.
+
+- Written with `Utf8JsonWriter` (System.Text.Json) instead of serializing a
+  DTO, to control the property order, omit absent fields and format the
+  timestamp exactly.
+- Properties: `timestamp`, `level`, `message`, and `exception` only when
+  there is one. The exception object has `type` (full type name), `message`,
+  `stackTrace` (omitted when the exception was never thrown) and
+  `innerException` (same shape, nested). `AggregateException` contents beyond
+  its first inner exception are not expanded.
+- Line breaks and quotes inside strings are escaped, so a multi-line message
+  cannot break the one-entry-per-line rule. Non-ASCII characters are kept
+  as-is (`JavaScriptEncoder.UnsafeRelaxedJsonEscaping`) for readability; that
+  encoder is only "unsafe" when the output is embedded in HTML.
+
+The text format puts the exception (`Exception.ToString()`) on the following
+lines, so it is meant for people, not for parsing.
+
 ### Thread safety
 
 `Logger` has no mutable state, so concurrent calls are safe as long as the
-sink is thread-safe, which the `ILogSink` contract requires.
+sink is thread-safe, which the `ILogSink` contract requires. The built-in
+formatters are stateless.
 
 ### Naming
 
@@ -105,6 +139,6 @@ alias, e.g. `using LogLevel = LoggingLibrary.LogLevel;`.
 
 ## Planned
 
-**Planned.** A file sink with JSON Lines output and size-based rotation,
+**Planned.** A file sink with size-based rotation,
 configuration through `LoggerOptions`, and an explicit policy for write
 errors. Their sections will be written together with their implementation.
