@@ -104,6 +104,14 @@ public class JsonLogFormatterTests
         Assert.Equal(expected, doc.RootElement.GetProperty("level").GetString());
     }
 
+    [Fact]
+    public void Format_UndefinedLevel_WritesNumericValue()
+    {
+        using var doc = JsonDocument.Parse(_formatter.Format(new LogEntry(Timestamp, (LogLevel)42, "m")));
+
+        Assert.Equal("42", doc.RootElement.GetProperty("level").GetString());
+    }
+
     private static Exception Throw(Action action)
     {
         try

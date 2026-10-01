@@ -176,6 +176,32 @@ dotnet build
 dotnet test
 ```
 
+## Testing
+
+The xUnit suite in `tests/LoggingLibrary.Tests` tests behavior through the
+public API, writing real files into a unique temporary directory per test.
+
+| Area | Test class | What it verifies |
+|---|---|---|
+| Levels | `LogLevelFilteringTests` | Every minimum-level / level combination, `IsEnabled` |
+| Logger | `LoggerTests`, `LogEntryTests` | Timestamps (UTC, injected clock), level shortcuts, argument checks |
+| JSON / text | `JsonLogFormatterTests`, `TextLogFormatterTests` | Exact output, valid JSON, exceptions (type, message, stack trace, inner), escaping |
+| File | `FileLogSinkTests`, `FileLoggerTests` | File and directory creation, appending, encoding, flushing, locked/invalid paths |
+| Configuration | `LoggerOptionsTests`, `LoggerOptionsConfigurationTests` | Defaults, validation of every option, `appsettings.json` parsing and errors |
+| Rotation | `FileLogSinkRotationTests` | Exact file names and contents after rotation, size limit, retention, oversized entries |
+| Concurrency | `ConcurrencyTests` | Thousands of concurrent writes, with rotation: no exceptions, valid JSON, no lost or duplicated entries |
+| Errors | `ErrorHandlingTests` | Write failures are reported with the entry, never thrown; recovery after a blocked rotation |
+
+Rotation tests use a fixed clock so every line has a known size, which makes
+the rotation points exact. Concurrency tests wait for threads to finish
+(`Parallel.For`, `Thread.Join`) rather than sleeping.
+
+To collect code coverage:
+
+```bash
+dotnet test --collect:"XPlat Code Coverage"
+```
+
 ## Project structure
 
 ```text
@@ -208,6 +234,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] Thread safety verification
 - [x] Write-error handling policy
 - [x] External configuration (`IConfiguration`)
+- [x] Complete test suite
 - [ ] Sample application
 - [ ] NuGet packaging
 - [ ] Final review of architecture, docs and code quality

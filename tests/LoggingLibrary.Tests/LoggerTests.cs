@@ -65,6 +65,18 @@ public class LoggerTests
     }
 
     [Fact]
+    public void ExtensionMethods_NullLogger_Throw()
+    {
+        ILogger logger = null!;
+
+        Assert.Throws<ArgumentNullException>(() => logger.Debug("m"));
+        Assert.Throws<ArgumentNullException>(() => logger.Info("m"));
+        Assert.Throws<ArgumentNullException>(() => logger.Warning("m"));
+        Assert.Throws<ArgumentNullException>(() => logger.Error("m"));
+        Assert.Throws<ArgumentNullException>(() => logger.Critical("m"));
+    }
+
+    [Fact]
     public void Constructor_NullSink_Throws()
     {
         Assert.Throws<ArgumentNullException>(() => new Logger(null!));

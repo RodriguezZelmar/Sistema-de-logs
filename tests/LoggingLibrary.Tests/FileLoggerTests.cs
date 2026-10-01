@@ -104,6 +104,15 @@ public sealed class FileLoggerTests : IDisposable
     }
 
     [Fact]
+    public void SecondLoggerOnSameFile_FailsToOpenInsteadOfCorruptingIt()
+    {
+        var options = new LoggerOptions { FilePath = _temp.Combine("app.log") };
+        using var first = new Logger(options);
+
+        Assert.Throws<IOException>(() => new Logger(options));
+    }
+
+    [Fact]
     public void Dispose_DoesNotDisposeCallerOwnedSink()
     {
         var sink = new InMemorySink();
