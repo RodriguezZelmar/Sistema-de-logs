@@ -41,6 +41,7 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 | `ILogFormatter` | `LoggingLibrary.Formatting` | Turns a `LogEntry` into one line of text (no trailing line break). |
 | `JsonLogFormatter` | `LoggingLibrary.Formatting` | Single-line JSON object per entry (JSON Lines / NDJSON). |
 | `TextLogFormatter` | `LoggingLibrary.Formatting` | Human-readable `timestamp [Level] message` lines. |
+| `FileLogSink` | `LoggingLibrary.Sinks` | Appends formatted entries to a file, one per line. |
 
 ### Why these abstractions
 
@@ -124,11 +125,33 @@ whole, and still be parsed if the last line was cut off by a crash.
 The text format puts the exception (`Exception.ToString()`) on the following
 lines, so it is meant for people, not for parsing.
 
+### File sink
+
+`FileLogSink` turns each entry into a line with its `ILogFormatter` and
+appends it to the file.
+
+- **Opened once, kept open.** The file is opened in the constructor
+  (`FileMode.Append`) and reused for every write, instead of opening and
+  closing it per entry. Opening eagerly also means an invalid or inaccessible
+  path fails at startup, not at the first log call.
+- **Directories are created** (`Directory.CreateDirectory`) if they do not
+  exist yet.
+- **Flushed on every write** to the operating system. Entries survive a
+  process that ends without disposing the logger. (This is not an `fsync`:
+  a power loss can still lose the last entries.)
+- **Encoding:** UTF-8 without BOM, `\n` line endings on every OS, so files
+  are identical across platforms and valid JSON Lines.
+- **Sharing:** the file is opened with `FileShare.Read`: other processes can
+  read (tail) it, but a second writer cannot open it. One sink per file.
+- **After a failed write** the stream is closed and the next write reopens
+  the file, so a transient error does not leave the sink permanently broken.
+
 ### Thread safety
 
 `Logger` has no mutable state, so concurrent calls are safe as long as the
 sink is thread-safe, which the `ILogSink` contract requires. The built-in
-formatters are stateless.
+formatters are stateless. `FileLogSink` serializes writes with a lock; see
+[Concurrency](#concurrency) once that stage is documented.
 
 ### Naming
 
@@ -139,6 +162,6 @@ alias, e.g. `using LogLevel = LoggingLibrary.LogLevel;`.
 
 ## Planned
 
-**Planned.** A file sink with size-based rotation,
+**Planned.** Size-based rotation for the file sink,
 configuration through `LoggerOptions`, and an explicit policy for write
 errors. Their sections will be written together with their implementation.

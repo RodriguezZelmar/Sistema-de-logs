@@ -3,8 +3,8 @@
 A small, reusable logging library for C#/.NET.
 
 > **Status: early development.** The core API (levels, filtering, sink
-> abstraction) and the JSON/text formatters exist, but there is no built-in
-> sink (output destination) yet. This README only
+> abstraction), the JSON/text formatters and a file sink exist. Rotation and
+> configuration are not implemented yet. This README only
 > describes what actually exists; planned work is listed under
 > [Roadmap](#roadmap).
 
@@ -25,15 +25,19 @@ Provide a library (not an application) with a clear public API that other
 
 ```csharp
 using LoggingLibrary;
+using LoggingLibrary.Formatting;
 using LoggingLibrary.Sinks;
 
-ILogSink sink = /* any ILogSink implementation */;
+using var sink = new FileLogSink("logs/application.log", new JsonLogFormatter());
 ILogger logger = new Logger(sink, minimumLevel: LogLevel.Info);
 
 logger.Info("Application started");
 logger.Warning("Low disk space");
 logger.Error("Could not connect to database", exception);
 ```
+
+The log directory is created if it does not exist. Each entry is appended
+and flushed immediately.
 
 ## Log levels
 
@@ -113,7 +117,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] Solution and project structure
 - [x] `LogLevel`, `LogEntry`, `ILogger`, `ILogSink` and minimum-level filtering
 - [x] JSON (NDJSON) and plain-text formatting
-- [ ] File sink
+- [x] File sink
 - [ ] Configuration (`LoggerOptions`)
 - [ ] Size-based file rotation
 - [ ] Thread safety verification
