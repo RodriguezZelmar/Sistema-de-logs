@@ -1,25 +1,28 @@
 # LoggingLibrary
 
-A small, reusable logging library for C#/.NET.
+A small, reusable logging library for C#/.NET 10.
 
-> **Status: early development.** The core API (levels, filtering, sink
-> abstraction), JSON/text formatting, file output and code-based configuration
-> and size-based rotation exist. This README only
-> describes what actually exists; planned work is listed under
-> [Roadmap](#roadmap).
+It is a library, not an application: other .NET projects reference it (as a
+project or as a NuGet package) and get a logger with a small public API,
+structured output and predictable behavior under failures and concurrency.
 
-## Goal
+## Features
 
-Provide a library (not an application) with a clear public API that other
-.NET projects can reference to write structured logs:
-
-- log levels with minimum-level filtering
-- one JSON object per line (JSON Lines / NDJSON)
-- file output with size-based rotation
-- configuration from code (and possibly from `appsettings.json`)
-- safe usage from multiple threads
-- an extensible sink abstraction, so the core logger does not depend on the
-  file implementation
+- **Log levels** `Debug`, `Info`, `Warning`, `Error`, `Critical`, with
+  minimum-level filtering and `IsEnabled` to skip expensive messages.
+- **JSON Lines output** (one JSON object per line) via `System.Text.Json`,
+  including exception details; optional plain-text format.
+- **UTC timestamps** in ISO 8601 with millisecond precision.
+- **File logging** with automatic directory creation.
+- **Size-based rotation** with a configurable number of retained files.
+- **Configuration** from code (`LoggerOptions`) or from `appsettings.json` /
+  any `IConfiguration`, with validation.
+- **Thread-safe**: one logger can be shared by every thread.
+- **Explicit error policy**: startup problems throw; write failures while
+  running never crash the caller and never disappear silently.
+- **Extensible**: `Logger` writes through `ILogSink`, so new destinations
+  don't require changing the logger.
+- **Tested** (xUnit) and **packable** as a NuGet package.
 
 ## Usage
 
@@ -159,7 +162,8 @@ Full table of cases in
 
 A single `Logger` instance can be shared by all threads. `FileLogSink`
 serializes each write (including rotation) with a lock, so entries are never
-interleaved or lost; when a `Log` call returns, the entry is in the file.
+interleaved or lost; when a `Log` call returns, the entry is in the file (or,
+if writing failed, it was handed to the write-error handler).
 Details in [docs/architecture.md](docs/architecture.md#concurrency).
 
 ## Requirements
@@ -256,7 +260,9 @@ since `LoggingLibrary` is a generic name.
 
 ```text
 .
-├── src/LoggingLibrary/            The library (class library, future NuGet package)
+├── src/LoggingLibrary/            The library (class library, NuGet package)
+│   ├── Formatting/                ILogFormatter, JSON and text formatters
+│   └── Sinks/                     ILogSink, FileLogSink
 ├── tests/LoggingLibrary.Tests/    xUnit tests
 ├── samples/LoggingLibrary.Sample/ Console app that consumes the library
 ├── docs/
@@ -271,25 +277,29 @@ Shared build settings (`Directory.Build.props`): target `net10.0`, nullable
 reference types enabled, and warnings treated as errors. The library also
 generates an XML documentation file, so every public member must be documented.
 
-## Roadmap
+## Limitations and possible improvements
 
-Each stage is built, tested, documented and committed separately.
+Deliberately out of scope for this version:
 
-- [x] Solution and project structure
-- [x] `LogLevel`, `LogEntry`, `ILogger`, `ILogSink` and minimum-level filtering
-- [x] JSON (NDJSON) and plain-text formatting
-- [x] File sink
-- [x] Configuration (`LoggerOptions`)
-- [x] Size-based file rotation
-- [x] Thread safety verification
-- [x] Write-error handling policy
-- [x] External configuration (`IConfiguration`)
-- [x] Complete test suite
-- [x] Sample application
-- [x] NuGet packaging
-- [ ] Final review of architecture, docs and code quality
+- **One process per log file.** A second writer (another process or another
+  logger instance on the same path) fails to open the file.
+- **Synchronous writes.** Each call writes and flushes before returning. A
+  buffered/background sink would be faster at high volume, at the cost of
+  losing queued entries on a crash; it could be added as another `ILogSink`.
+- **Only size-based rotation**, no time-based rotation.
+- **No structured properties** (`{"userId": 42}`) beyond message and
+  exception. `LogEntry` was designed so they can be added without breaking
+  the API.
+- **No integration with `Microsoft.Extensions.Logging`** (`ILoggerProvider`).
+  It could be added as a separate adapter package.
+- **One sink per logger.** A composite sink would allow several destinations.
 
-See [docs/architecture.md](docs/architecture.md) for design decisions.
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md): components, log flow, and
+  the design decisions behind concurrency, rotation and error handling.
+- [docs/configuration.md](docs/configuration.md): every option, validation
+  rules and configuration files.
 
 ## License
 

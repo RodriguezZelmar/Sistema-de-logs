@@ -26,7 +26,6 @@ working configuration.
 | `Format` | `LogFormat` | `Json` | `Json`: one JSON object per line (JSON Lines). `Text`: `timestamp [Level] message` lines. |
 | `MaxFileSizeBytes` | `long` | `10_000_000` (10 MB) | Size limit of the active file. A write that would exceed it rotates the file first. |
 | `MaxRetainedFiles` | `int` | `5` | Rotated files kept besides the active one (`application.1.log` newest ... `application.N.log` oldest). The oldest is deleted when a new archive would exceed the count. `0` keeps no history. |
-
 | `OnWriteError` | `Action<LogWriteException>?` | `null` (print to stderr) | Receives write failures (disk full, rotation blocked, logging after dispose) together with the unwritten entry. Logging calls do not throw because of them unless this handler throws. Code only; cannot come from a configuration file. |
 
 ### Write-error handler example
@@ -55,7 +54,7 @@ var options = new LoggerOptions
 };
 ```
 
-produces at most four files, together never much more than 4 MB:
+produces at most four files of up to 1 MB each:
 
 ```text
 logs/application.log      active file
@@ -101,7 +100,7 @@ IConfiguration configuration = new ConfigurationBuilder()
     .Build();
 
 var options = LoggerOptions.FromConfiguration(configuration.GetSection("LoggingLibrary"));
-options.OnWriteError = ...;                   // code-only settings can still be added
+options.OnWriteError = error => Console.Error.WriteLine(error);  // code-only settings can still be added
 using var logger = new Logger(options);
 ```
 

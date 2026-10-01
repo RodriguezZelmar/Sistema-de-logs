@@ -74,8 +74,9 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 - `Logger(LoggerOptions)` — the common case. Validates the options and, if
   logging is enabled, creates a `FileLogSink` with the formatter selected by
   `Format`. The logger **owns** that sink and closes it in `Dispose()`.
-- `Logger(ILogSink, minimumLevel, timeProvider)` — for custom sinks and tests.
-  The caller owns the sink; `Logger.Dispose()` does not dispose it.
+- `Logger(ILogSink, minimumLevel, timeProvider, onWriteError)` — for custom
+  sinks and tests; all parameters but the sink are optional. The caller owns
+  the sink; `Logger.Dispose()` does not dispose it.
 
 `LoggerOptions` is a plain class with settable properties and defaults, so it
 works with object initializers and can be bound from configuration. The
@@ -90,7 +91,7 @@ for every level and calls cost one null check.
 ```text
 logger.Error("Database connection failed", ex)
   └─ LoggerExtensions.Error  →  Logger.Log(Error, message, ex)
-       ├─ IsEnabled(Error)?  no → return (nothing allocated)
+       ├─ IsEnabled(Error)?  no → return (no entry, no clock read, no I/O)
        ├─ new LogEntry(TimeProvider.GetUtcNow(), Error, message, ex)
        ├─ ILogSink.Write(entry)                       (FileLogSink)
        │    ├─ ILogFormatter.Format(entry) → string   (outside the lock)
@@ -264,7 +265,8 @@ entry, which keeps the critical section to the I/O itself.
 | Lock-free tricks | No benefit: the expensive part is the I/O, which must be serialized anyway. |
 
 The lock keeps the behavior simple to reason about: when `Log` returns, the
-entry is in the file. A buffered/asynchronous sink could be added later as
+entry is in the file (or was handed to the write-error handler). A
+buffered/asynchronous sink could be added later as
 another `ILogSink` without changing `Logger`.
 
 **Verification.** `ConcurrencyTests` writes thousands of entries from many
