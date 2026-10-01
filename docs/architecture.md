@@ -226,12 +226,46 @@ caller of `Write`, and the next write reopens the active file.
 The size of the active file is tracked in memory (initialized from the file
 length when it is opened), so the check costs no I/O.
 
-### Thread safety
+### Concurrency
 
-`Logger` has no mutable state, so concurrent calls are safe as long as the
-sink is thread-safe, which the `ILogSink` contract requires. The built-in
-formatters are stateless. `FileLogSink` serializes writes with a lock; see
-[Concurrency](#concurrency) once that stage is documented.
+One logger is meant to be shared by the whole application, so it must handle
+calls from many threads at once without corrupting the file, interleaving
+lines, throwing because of contention, or losing entries.
+
+**Where the shared state is.** `Logger` and the formatters have no mutable
+state, so they are safe without synchronization. All shared mutable state
+(the open `FileStream`, the tracked file size, the rotation) lives in
+`FileLogSink`, and the `ILogSink` contract requires sinks to be thread-safe.
+
+**Strategy: one lock in `FileLogSink.Write`** (`System.Threading.Lock`).
+Inside it: check disposal, rotate if needed, write the bytes, flush. Because
+"check size → rotate → write" is one critical section, two threads can never
+both decide to rotate, or write into a file that is being renamed. Formatting
+and UTF-8 encoding happen *before* taking the lock, since they only touch the
+entry, which keeps the critical section to the I/O itself.
+
+**Alternatives considered.**
+
+| Option | Why not (for now) |
+|---|---|
+| Background writer (`Channel<T>` / `ConcurrentQueue<T>` + one consumer thread) | Callers would not wait for I/O, but entries still in the queue are lost if the process crashes, `Dispose` must drain the queue, and errors happen on another thread, away from the caller. More code and new failure modes for a gain that only matters at high volume. |
+| Opening the file per write with OS-level locking | Much slower and still needs in-process coordination for rotation. |
+| Lock-free tricks | No benefit: the expensive part is the I/O, which must be serialized anyway. |
+
+The lock keeps the behavior simple to reason about: when `Log` returns, the
+entry is in the file. A buffered/asynchronous sink could be added later as
+another `ILogSink` without changing `Logger`.
+
+**Verification.** `ConcurrencyTests` writes thousands of entries from many
+threads at once (`Parallel.For`, and threads released together by a
+`Barrier`, with rotation happening during the run) and checks that no call
+threw, every line parses as JSON, no file exceeds the size limit, and every
+message appears exactly once. Removing the lock makes both tests fail. The
+tests wait for the threads to finish (`Join`) instead of using sleeps.
+
+**Limits.** The lock coordinates threads in one process. Several processes
+writing the same file are not supported: the file is opened with
+`FileShare.Read`, so a second writer fails to open it instead of corrupting it.
 
 ### Naming
 

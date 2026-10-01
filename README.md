@@ -118,6 +118,13 @@ Entries are never split between files. See
 [docs/architecture.md](docs/architecture.md#rotation-strategy) for the exact
 rules.
 
+## Thread safety
+
+A single `Logger` instance can be shared by all threads. `FileLogSink`
+serializes each write (including rotation) with a lock, so entries are never
+interleaved or lost; when a `Log` call returns, the entry is in the file.
+Details in [docs/architecture.md](docs/architecture.md#concurrency).
+
 ## Requirements
 
 - .NET SDK 10 (LTS). The exact SDK band is pinned in [`global.json`](global.json).
@@ -161,7 +168,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] File sink
 - [x] Configuration (`LoggerOptions`)
 - [x] Size-based file rotation
-- [ ] Thread safety verification
+- [x] Thread safety verification
 - [ ] Write-error handling policy
 - [ ] External configuration (`IConfiguration`)
 - [ ] Sample application
