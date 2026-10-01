@@ -22,20 +22,89 @@ removes real work for consumers — for example
 implemented. Test-only packages (xUnit) live in the test project and never
 reach library consumers.
 
-## Planned component design
-
-**Planned.** The core logger will not depend on a concrete output:
+## Components
 
 ```text
-Logger  ──►  ILogSink  ──►  FileLogSink
-(filtering,   (abstraction)   (formatting to file,
- LogEntry                      rotation)
- creation)
+caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete sink)
+           (+ LoggerExtensions:    filters by level,
+            Info, Error, ...)      timestamps, builds LogEntry
 ```
 
-Adding a new destination (console, HTTP, ...) should mean adding a new
-`ILogSink` implementation without modifying `Logger`. Only the file sink is
-in scope for the first version.
+| Type | Namespace | Responsibility |
+|---|---|---|
+| `LogLevel` | `LoggingLibrary` | Ordered severity: `Debug < Info < Warning < Error < Critical`. |
+| `LogEntry` | `LoggingLibrary` | Immutable event: UTC timestamp, level, message, optional exception. |
+| `ILogger` | `LoggingLibrary` | What application code depends on: `IsEnabled(level)` and `Log(level, message, exception)`. |
+| `LoggerExtensions` | `LoggingLibrary` | `Debug`, `Info`, `Warning`, `Error`, `Critical` shortcuts over `ILogger.Log`. |
+| `Logger` | `LoggingLibrary` | Default `ILogger`: filters by minimum level, timestamps and forwards to one `ILogSink`. |
+| `ILogSink` | `LoggingLibrary.Sinks` | A destination for entries. Must be thread-safe. |
 
-The remaining sections (log flow, concurrency strategy, rotation strategy,
-error handling) will be written together with their implementation.
+### Why these abstractions
+
+- **`ILogger`** lets application code be tested with a fake logger and keeps
+  it independent from how logs are written. It has only two members; the
+  level shortcuts are extension methods, so a custom implementation (or a test
+  fake) does not have to repeat them.
+- **`ILogSink`** decouples *what to log* (filtering, timestamps — `Logger`)
+  from *where it goes*. A new destination (console, HTTP...) is a new
+  `ILogSink`; `Logger` does not change. Only the sinks that are actually used
+  are implemented.
+- **`LogEntry`** is a sealed class with read-only properties instead of a
+  positional record, so fields (for example structured properties) can be
+  added later without breaking callers.
+
+### Log levels
+
+`Debug`, `Info`, `Warning` and `Error` are the core levels. `Critical` was
+added because "this operation failed" (`Error`) and "the application cannot
+continue" (`Critical`) usually trigger different reactions (retry vs. alert
+someone), and a log reader benefits from being able to search for the second
+one specifically. `Trace` was left out: with a single destination and no
+per-component configuration, a level below `Debug` would add API surface
+without a clear use.
+
+Filtering is a single comparison (`level >= minimumLevel`), which works because
+the enum values are ordered by severity.
+
+### Avoiding unnecessary work
+
+`Logger.Log` checks the level before creating the `LogEntry` or reading the
+clock, so a disabled call costs one comparison. When *building the message* is
+the expensive part, callers can guard it with `IsEnabled`:
+
+```csharp
+if (logger.IsEnabled(LogLevel.Debug))
+{
+    logger.Debug(BuildExpensiveDiagnostics());
+}
+```
+
+A lambda-based overload (`logger.Debug(() => ...)`) was considered and not
+added: `IsEnabled` covers the same need without a delegate allocation per call
+and without doubling the number of methods.
+
+### Timestamps
+
+Timestamps are `DateTimeOffset` values taken from `TimeProvider.GetUtcNow()`
+and stored in UTC (`LogEntry` converts any offset to UTC). UTC avoids
+ambiguity when servers run in different time zones and around daylight-saving
+changes. `TimeProvider` is the standard .NET clock abstraction; injecting it
+lets tests use a fixed time.
+
+### Thread safety
+
+`Logger` has no mutable state, so concurrent calls are safe as long as the
+sink is thread-safe, which the `ILogSink` contract requires.
+
+### Naming
+
+`ILogger` and `LogLevel` share names with types in
+`Microsoft.Extensions.Logging`. They live in the `LoggingLibrary` namespace, so
+there is no conflict unless a file imports both namespaces; in that case use an
+alias, e.g. `using LogLevel = LoggingLibrary.LogLevel;`.
+
+## Planned
+
+**Planned.** A file sink with JSON Lines output and size-based rotation,
+configuration through `LoggerOptions`, and an explicit policy for write
+errors. Their sections will be written together with their implementation.
