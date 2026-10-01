@@ -1,3 +1,5 @@
+using LoggingLibrary.Sinks;
+
 namespace LoggingLibrary;
 
 /// <summary>
@@ -34,6 +36,20 @@ public sealed class LoggerOptions
     /// <summary>Output format. Default: <see cref="LogFormat.Json"/>.</summary>
     public LogFormat Format { get; set; } = LogFormat.Json;
 
+    /// <summary>
+    /// Size limit of the active log file. A write that would exceed it first
+    /// rotates the file. Must be positive. Default: 10,000,000 (10 MB).
+    /// </summary>
+    public long MaxFileSizeBytes { get; set; } = 10_000_000;
+
+    /// <summary>
+    /// Number of rotated files (<c>application.1.log</c>, <c>application.2.log</c>, ...)
+    /// kept besides the active file; the oldest is deleted when the limit is
+    /// exceeded. From 0 to <see cref="FileLogSink.MaxRetainedFilesLimit"/>.
+    /// With 0, rotation discards the content of the full file. Default: 5.
+    /// </summary>
+    public int MaxRetainedFiles { get; set; } = 5;
+
     /// <summary>Checks that every option has a usable value.</summary>
     /// <exception cref="ArgumentException">An option is invalid. The message names the option.</exception>
     public void Validate()
@@ -46,6 +62,16 @@ public sealed class LoggerOptions
         if (!Enum.IsDefined(Format))
         {
             throw new ArgumentOutOfRangeException(nameof(Format), Format, $"{nameof(Format)} is not a valid {nameof(LogFormat)}.");
+        }
+
+        if (MaxFileSizeBytes <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxFileSizeBytes), MaxFileSizeBytes, $"{nameof(MaxFileSizeBytes)} must be greater than zero.");
+        }
+
+        if (MaxRetainedFiles is < 0 or > FileLogSink.MaxRetainedFilesLimit)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaxRetainedFiles), MaxRetainedFiles, $"{nameof(MaxRetainedFiles)} must be between 0 and {FileLogSink.MaxRetainedFilesLimit}.");
         }
 
         if (string.IsNullOrWhiteSpace(FilePath))

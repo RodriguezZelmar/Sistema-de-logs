@@ -35,7 +35,11 @@ public sealed class Logger : ILogger, IDisposable
         _timeProvider = TimeProvider.System;
         if (options.Enabled)
         {
-            _sink = new FileLogSink(options.FilePath, CreateFormatter(options.Format));
+            _sink = new FileLogSink(
+                options.FilePath,
+                CreateFormatter(options.Format),
+                options.MaxFileSizeBytes,
+                options.MaxRetainedFiles);
             _ownsSink = true;
         }
     }

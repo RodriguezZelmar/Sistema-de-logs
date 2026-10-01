@@ -24,6 +24,32 @@ working configuration.
 | `MinimumLevel` | `LogLevel` | `Info` | Entries below this level are discarded. Order: `Debug < Info < Warning < Error < Critical`. |
 | `FilePath` | `string` | `logs/application.log` | Path of the log file. Relative paths are resolved against the process's current directory. Missing directories are created. |
 | `Format` | `LogFormat` | `Json` | `Json`: one JSON object per line (JSON Lines). `Text`: `timestamp [Level] message` lines. |
+| `MaxFileSizeBytes` | `long` | `10_000_000` (10 MB) | Size limit of the active file. A write that would exceed it rotates the file first. |
+| `MaxRetainedFiles` | `int` | `5` | Rotated files kept besides the active one (`application.1.log` newest ... `application.N.log` oldest). The oldest is deleted when a new archive would exceed the count. `0` keeps no history. |
+
+### Rotation example
+
+```csharp
+var options = new LoggerOptions
+{
+    FilePath = "logs/application.log",
+    MaxFileSizeBytes = 1_000_000,
+    MaxRetainedFiles = 3,
+};
+```
+
+produces at most four files, together never much more than 4 MB:
+
+```text
+logs/application.log      active file
+logs/application.1.log    most recent archive
+logs/application.2.log
+logs/application.3.log    oldest archive, deleted on the next rotation
+```
+
+A single entry larger than `MaxFileSizeBytes` is never split: it is written
+whole into a new file. The full algorithm is in
+[architecture.md](architecture.md#rotation-strategy).
 
 ### About relative paths
 
@@ -44,6 +70,8 @@ called directly). Invalid options throw an `ArgumentException` (or the derived
 | `MinimumLevel` | Must be a defined `LogLevel` value. |
 | `Format` | Must be a defined `LogFormat` value. |
 | `FilePath` | Must not be null, empty or whitespace, and must be a syntactically valid path. |
+| `MaxFileSizeBytes` | Must be greater than 0. |
+| `MaxRetainedFiles` | Must be between 0 and 1000 (`FileLogSink.MaxRetainedFilesLimit`). |
 
 Options are validated even when `Enabled` is `false`, so a configuration
 mistake is not hidden until logging is turned on.

@@ -4,7 +4,7 @@ A small, reusable logging library for C#/.NET.
 
 > **Status: early development.** The core API (levels, filtering, sink
 > abstraction), JSON/text formatting, file output and code-based configuration
-> exist. Rotation is not implemented yet. This README only
+> and size-based rotation exist. This README only
 > describes what actually exists; planned work is listed under
 > [Roadmap](#roadmap).
 
@@ -49,6 +49,8 @@ and flushed immediately. Application code should depend on `ILogger`, which
 | `MinimumLevel` | `Info` | Entries below this level are discarded. |
 | `FilePath` | `logs/application.log` | Log file path; directories are created. |
 | `Format` | `Json` | `Json` (JSON Lines) or `Text`. |
+| `MaxFileSizeBytes` | `10_000_000` | Size at which the file is rotated. |
+| `MaxRetainedFiles` | `5` | Rotated files kept besides the active one. |
 
 Invalid options throw `ArgumentException` when the logger is created. Details
 in [docs/configuration.md](docs/configuration.md).
@@ -100,6 +102,22 @@ human-readable lines: `2026-10-01T20:30:15.432Z [Info] Application started`.
 
 Timestamps are always UTC, ISO 8601, millisecond precision.
 
+## Rotation
+
+When writing an entry would make the active file larger than
+`MaxFileSizeBytes`, the file is rotated first:
+
+```text
+application.log    → application.1.log   (newest archive)
+application.1.log  → application.2.log
+...
+application.N.log  → deleted             (N = MaxRetainedFiles)
+```
+
+Entries are never split between files. See
+[docs/architecture.md](docs/architecture.md#rotation-strategy) for the exact
+rules.
+
 ## Requirements
 
 - .NET SDK 10 (LTS). The exact SDK band is pinned in [`global.json`](global.json).
@@ -142,7 +160,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] JSON (NDJSON) and plain-text formatting
 - [x] File sink
 - [x] Configuration (`LoggerOptions`)
-- [ ] Size-based file rotation
+- [x] Size-based file rotation
 - [ ] Thread safety verification
 - [ ] Write-error handling policy
 - [ ] External configuration (`IConfiguration`)

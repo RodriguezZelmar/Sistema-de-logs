@@ -43,7 +43,7 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 | `ILogFormatter` | `LoggingLibrary.Formatting` | Turns a `LogEntry` into one line of text (no trailing line break). |
 | `JsonLogFormatter` | `LoggingLibrary.Formatting` | Single-line JSON object per entry (JSON Lines / NDJSON). |
 | `TextLogFormatter` | `LoggingLibrary.Formatting` | Human-readable `timestamp [Level] message` lines. |
-| `FileLogSink` | `LoggingLibrary.Sinks` | Appends formatted entries to a file, one per line. |
+| `FileLogSink` | `LoggingLibrary.Sinks` | Appends formatted entries to a file, one per line, with size-based rotation. |
 
 ### Why these abstractions
 
@@ -90,7 +90,7 @@ logger.Error("Database connection failed", ex)
        └─ ILogSink.Write(entry)                       (FileLogSink)
             ├─ ILogFormatter.Format(entry) → string   (outside the lock)
             ├─ UTF-8 encode + "\n"
-            └─ lock { write bytes; flush }
+            └─ lock { rotate if needed; write bytes; flush }
 ```
 
 ### Log levels
@@ -179,6 +179,53 @@ appends it to the file.
 - **After a failed write** the stream is closed and the next write reopens
   the file, so a transient error does not leave the sink permanently broken.
 
+### Rotation strategy
+
+Rotation is size-based, which is deterministic and easy to test; time-based
+rotation was left out because nothing in the current scope needs it.
+
+**When.** Before writing an entry, if the active file is not empty and the
+entry would make it larger than `MaxFileSizeBytes`, the file is rotated
+first. Consequences:
+
+- A file never exceeds the limit, except when a *single* entry is larger than
+  the limit: it is then written whole into a fresh file. Entries are never
+  split or dropped because of size.
+- A file that is already over the limit when the logger starts (for example
+  after the limit was lowered) is rotated on the first write.
+
+**How.** With `application.log` and `MaxRetainedFiles = 3`:
+
+```text
+1. delete  application.3.log                   (oldest; ignored if missing)
+2. rename  application.2.log → application.3.log
+3. rename  application.1.log → application.2.log
+4. rename  application.log   → application.1.log
+5. create  application.log                     (new, empty)
+```
+
+So `application.1.log` is always the most recent archive and higher numbers
+are older. The index goes before the extension (`app` without extension
+becomes `app.1`). Renaming is a metadata operation: rotating never reads or
+copies file contents, whatever the file size.
+
+**Retention.** `MaxRetainedFiles` counts archives *besides* the active file,
+so at most `MaxRetainedFiles + 1` files exist. With `0`, rotation deletes the
+full file and starts over. The value is capped at 1000 because every rotation
+walks the archive indices.
+
+**Leftovers.** Only indices `1..MaxRetainedFiles` are managed. If the limit is
+lowered between runs, archives with higher indices from earlier runs are left
+untouched (the library does not delete files it is not currently managing).
+
+**Failure mid-rotation.** Each step tolerates missing files, so a rotation
+interrupted half-way (for example, an archive locked by another program) is
+completed by the next attempt. Until then the exception is propagated to the
+caller of `Write`, and the next write reopens the active file.
+
+The size of the active file is tracked in memory (initialized from the file
+length when it is opened), so the check costs no I/O.
+
 ### Thread safety
 
 `Logger` has no mutable state, so concurrent calls are safe as long as the
@@ -195,6 +242,6 @@ alias, e.g. `using LogLevel = LoggingLibrary.LogLevel;`.
 
 ## Planned
 
-**Planned.** Size-based rotation for the file sink,
-configuration through `LoggerOptions`, and an explicit policy for write
-errors. Their sections will be written together with their implementation.
+**Planned.** An explicit policy for write errors, and loading options from
+`IConfiguration`. Their sections will be written together with their
+implementation.
