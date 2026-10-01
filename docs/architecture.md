@@ -1,13 +1,10 @@
 # Architecture
 
-> This document is updated as each stage is implemented. Sections marked
-> **Planned** describe intended design, not existing code.
-
 ## Solution layout
 
 | Project | Type | Purpose |
 |---|---|---|
-| `src/LoggingLibrary` | Class library | The reusable library and its public API. Has no external package dependencies. |
+| `src/LoggingLibrary` | Class library | The reusable library and its public API. Its only package dependency is `Microsoft.Extensions.Configuration.Abstractions`. |
 | `tests/LoggingLibrary.Tests` | xUnit test project | Behavioral tests against the library's public API. |
 | `samples/LoggingLibrary.Sample` | Console app | Shows how an external project consumes the library. Only references the library, like any other consumer would. |
 
@@ -15,12 +12,19 @@ The library targets `net10.0`, the current LTS release of .NET.
 
 ## Dependency policy
 
-The library should rely on the .NET base class library (`System.Text.Json`,
+The library relies on the .NET base class library (`System.Text.Json`,
 `System.IO`, `System.Threading`). A package dependency is only added when it
-removes real work for consumers — for example
-`Microsoft.Extensions.Configuration` if binding from `appsettings.json` is
-implemented. Test-only packages (xUnit) live in the test project and never
-reach library consumers.
+removes real work for consumers.
+
+| Package | Used by | Why |
+|---|---|---|
+| `Microsoft.Extensions.Configuration.Abstractions` | library | Accept an `IConfiguration` section in `LoggerOptions.FromConfiguration`, the standard way .NET apps pass settings. It only contains interfaces; the application chooses the providers (JSON, environment variables...). |
+| `Microsoft.Extensions.Configuration`, `.Json` | tests, sample | Build real configurations from JSON in tests and in the sample. Not a library dependency. |
+| `xunit`, `Microsoft.NET.Test.Sdk`, `coverlet.collector` | tests | Test framework, runner and coverage collection. |
+
+`Microsoft.Extensions.Configuration.Binder` was not used: options are read
+explicitly so that unknown keys and unparsable values produce errors that
+name the configuration path, instead of being ignored.
 
 ## Components
 
@@ -37,7 +41,7 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 | `ILogger` | `LoggingLibrary` | What application code depends on: `IsEnabled(level)` and `Log(level, message, exception)`. |
 | `LoggerExtensions` | `LoggingLibrary` | `Debug`, `Info`, `Warning`, `Error`, `Critical` shortcuts over `ILogger.Log`. |
 | `Logger` | `LoggingLibrary` | Default `ILogger`: filters by minimum level, timestamps and forwards to one `ILogSink`. |
-| `LoggerOptions` | `LoggingLibrary` | Settings for a file logger, with defaults and `Validate()`. |
+| `LoggerOptions` | `LoggingLibrary` | Settings for a file logger, with defaults, `Validate()` and `FromConfiguration(IConfiguration)`. |
 | `LogFormat` | `LoggingLibrary` | `Json` or `Text`; selects the formatter. |
 | `LogWriteException` | `LoggingLibrary` | Reports an entry the sink could not write, with the cause. |
 | `ILogSink` | `LoggingLibrary.Sinks` | A destination for entries. Must be thread-safe. |
@@ -326,8 +330,3 @@ but break the size guarantee and make the failure invisible, so the explicit
 report was preferred.
 
 Programming errors (`null` message or sink) always throw, as in any .NET API.
-
-## Planned
-
-**Planned.** Loading options from `IConfiguration`. Its section will be
-written together with its implementation.

@@ -53,8 +53,28 @@ and flushed immediately. Application code should depend on `ILogger`, which
 | `MaxRetainedFiles` | `5` | Rotated files kept besides the active one. |
 | `OnWriteError` | `null` (stderr) | Receives entries that could not be written. |
 
-Invalid options throw `ArgumentException` when the logger is created. Details
-in [docs/configuration.md](docs/configuration.md).
+Invalid options throw `ArgumentException` when the logger is created.
+
+Options can also come from `appsettings.json` (or any `IConfiguration`):
+
+```json
+{
+  "LoggingLibrary": {
+    "MinimumLevel": "Info",
+    "FilePath": "logs/application.log",
+    "MaxFileSizeBytes": 10000000,
+    "MaxRetainedFiles": 5
+  }
+}
+```
+
+```csharp
+var options = LoggerOptions.FromConfiguration(configuration.GetSection("LoggingLibrary"));
+using var logger = new Logger(options);
+```
+
+Unknown keys and invalid values are reported with their configuration path.
+Details in [docs/configuration.md](docs/configuration.md).
 
 ### Custom sinks
 
@@ -187,7 +207,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] Size-based file rotation
 - [x] Thread safety verification
 - [x] Write-error handling policy
-- [ ] External configuration (`IConfiguration`)
+- [x] External configuration (`IConfiguration`)
 - [ ] Sample application
 - [ ] NuGet packaging
 - [ ] Final review of architecture, docs and code quality

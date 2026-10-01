@@ -76,6 +76,55 @@ started from; for services it may be a system folder. When in doubt, build an
 absolute path, for example
 `Path.Combine(AppContext.BaseDirectory, "logs", "application.log")`.
 
+## Configuration files (`appsettings.json`)
+
+Options can also be read from any `IConfiguration` source (JSON files,
+environment variables, command line...) with `LoggerOptions.FromConfiguration`:
+
+```json
+{
+  "LoggingLibrary": {
+    "MinimumLevel": "Info",
+    "FilePath": "logs/application.log",
+    "Format": "Json",
+    "MaxFileSizeBytes": 10000000,
+    "MaxRetainedFiles": 5
+  }
+}
+```
+
+```csharp
+using Microsoft.Extensions.Configuration;
+
+IConfiguration configuration = new ConfigurationBuilder()
+    .AddJsonFile("appsettings.json")          // needs Microsoft.Extensions.Configuration.Json
+    .Build();
+
+var options = LoggerOptions.FromConfiguration(configuration.GetSection("LoggingLibrary"));
+options.OnWriteError = ...;                   // code-only settings can still be added
+using var logger = new Logger(options);
+```
+
+Rules:
+
+- Pass the section that **directly contains** the keys. Any section name
+  works; a dedicated name such as `LoggingLibrary` is recommended because
+  ASP.NET Core already uses `Logging` for `Microsoft.Extensions.Logging`
+  (`Logging:LogLevel:...`), and those keys would be rejected as unknown.
+- Keys and enum values are case-insensitive (`"minimumLevel": "warning"` works).
+- Absent keys keep their default values; an absent section gives all defaults.
+- **Unknown keys are an error**, so a typo such as `MaxFileSize` is reported
+  instead of being silently ignored.
+- Unparsable values (`"MinimumLevel": "Verbose"`, `"MaxFileSizeBytes": "10MB"`)
+  throw an `ArgumentException` whose message includes the configuration path
+  (`LoggingLibrary:MaxFileSizeBytes`) and the expected format.
+- The result is validated with `Validate()` before it is returned.
+- `OnWriteError` is a delegate and cannot come from configuration.
+
+The library depends only on `Microsoft.Extensions.Configuration.Abstractions`
+(the `IConfiguration` interface). Which providers to use (JSON, environment
+variables, ...) is up to the application.
+
 ## Validation
 
 `Logger` calls `LoggerOptions.Validate()` in its constructor (it can also be

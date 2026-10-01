@@ -15,7 +15,7 @@ namespace LoggingLibrary;
 /// });
 /// </code>
 /// </example>
-public sealed class LoggerOptions
+public sealed partial class LoggerOptions
 {
     /// <summary>
     /// Whether logging is on. When <see langword="false"/>, the logger discards
