@@ -125,7 +125,7 @@ public sealed class FileLogSink : ILogSink
             {
                 // Drop the handle so the next write reopens the file instead
                 // of reusing a stream in an unknown state.
-                CloseStream();
+                DiscardStream();
                 throw;
             }
         }
@@ -183,8 +183,51 @@ public sealed class FileLogSink : ILogSink
         {
             Directory.CreateDirectory(_directory);
         }
-        _stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
-        _currentSize = _stream.Length;
+        var stream = new FileStream(FilePath, FileMode.Append, FileAccess.Write, FileShare.Read);
+        try
+        {
+            if (stream.Length > 0 && !EndsWithLineFeed())
+            {
+                // A previous process stopped in the middle of an entry. End that
+                // line so the next entry does not get glued to it.
+                stream.WriteByte((byte)'\n');
+                stream.Flush();
+            }
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+
+        _stream = stream;
+        _currentSize = stream.Length;
+    }
+
+    private bool EndsWithLineFeed()
+    {
+        // A second, read-only handle: the write handle is in append mode and cannot read.
+        using var reader = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        reader.Seek(-1, SeekOrigin.End);
+        return reader.ReadByte() == '\n';
+    }
+
+    /// <summary>Closes the stream after a failure, without hiding the original exception.</summary>
+    private void DiscardStream()
+    {
+        try
+        {
+            _stream?.Dispose();
+        }
+        catch (Exception)
+        {
+            // Closing can fail again (e.g. flushing to a full disk); the
+            // exception already being propagated is the useful one.
+        }
+        finally
+        {
+            _stream = null;
+        }
     }
 
     private void CloseStream()

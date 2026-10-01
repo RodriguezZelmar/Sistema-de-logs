@@ -69,6 +69,23 @@ public sealed class FileLogSinkTests : IDisposable
     }
 
     [Fact]
+    public void Write_AfterTruncatedLastLine_StartsOnANewLine()
+    {
+        // Simulates a previous run that crashed in the middle of writing an entry.
+        var path = _temp.Combine("application.log");
+        File.WriteAllText(path, "{\"timestamp\":\"2026-10-01T20:30:15.432Z\",\"lev");
+
+        using (var sink = new FileLogSink(path, new JsonLogFormatter()))
+        {
+            sink.Write(new LogEntry(Timestamp, LogLevel.Info, "after crash"));
+        }
+
+        var lines = File.ReadAllLines(path);
+        Assert.Equal(2, lines.Length);
+        Assert.Equal("after crash", MessageOf(lines[1]));
+    }
+
+    [Fact]
     public void Write_IsFlushedImmediately()
     {
         var path = _temp.Combine("application.log");

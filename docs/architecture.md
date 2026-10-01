@@ -184,6 +184,11 @@ appends it to the file.
   read (tail) it, but a second writer cannot open it. One sink per file.
 - **After a failed write** the stream is closed and the next write reopens
   the file, so a transient error does not leave the sink permanently broken.
+  If closing fails too, the original exception is the one reported.
+- **Truncated last line.** If a previous process died in the middle of an
+  entry, the file does not end with `\n`. When the file is opened, a line
+  break is added first, so only the cut-off line is invalid and the new
+  entries start on lines of their own.
 
 ### Rotation strategy
 
