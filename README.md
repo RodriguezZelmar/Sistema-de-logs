@@ -176,6 +176,27 @@ dotnet build
 dotnet test
 ```
 
+## Sample application
+
+[`samples/LoggingLibrary.Sample`](samples/LoggingLibrary.Sample/Program.cs) is
+a separate console app that consumes the library the way any other project
+would. It reads the options from its `appsettings.json`, writes entries of
+several levels (one filtered out), a warning and an error with a nested
+exception, then prints where the log file is and its last lines.
+
+```bash
+dotnet run --project samples/LoggingLibrary.Sample
+```
+
+```text
+Logs written to: .../samples/LoggingLibrary.Sample/bin/Debug/net10.0/logs/application.log
+
+{"timestamp":"...","level":"Info","message":"Sample application started"}
+{"timestamp":"...","level":"Warning","message":"Disk space is below 10%"}
+{"timestamp":"...","level":"Error","message":"Could not connect to the database","exception":{"type":"System.InvalidOperationException","message":"Database unavailable","stackTrace":"...","innerException":{"type":"System.TimeoutException","message":"The server did not respond within 5 seconds."}}}
+{"timestamp":"...","level":"Info","message":"Sample application finished"}
+```
+
 ## Testing
 
 The xUnit suite in `tests/LoggingLibrary.Tests` tests behavior through the
@@ -235,7 +256,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] Write-error handling policy
 - [x] External configuration (`IConfiguration`)
 - [x] Complete test suite
-- [ ] Sample application
+- [x] Sample application
 - [ ] NuGet packaging
 - [ ] Final review of architecture, docs and code quality
 
