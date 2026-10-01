@@ -3,8 +3,8 @@
 A small, reusable logging library for C#/.NET.
 
 > **Status: early development.** The core API (levels, filtering, sink
-> abstraction), the JSON/text formatters and a file sink exist. Rotation and
-> configuration are not implemented yet. This README only
+> abstraction), JSON/text formatting, file output and code-based configuration
+> exist. Rotation is not implemented yet. This README only
 > describes what actually exists; planned work is listed under
 > [Roadmap](#roadmap).
 
@@ -21,15 +21,16 @@ Provide a library (not an application) with a clear public API that other
 - an extensible sink abstraction, so the core logger does not depend on the
   file implementation
 
-## Usage (current API)
+## Usage
 
 ```csharp
 using LoggingLibrary;
-using LoggingLibrary.Formatting;
-using LoggingLibrary.Sinks;
 
-using var sink = new FileLogSink("logs/application.log", new JsonLogFormatter());
-ILogger logger = new Logger(sink, minimumLevel: LogLevel.Info);
+using var logger = new Logger(new LoggerOptions
+{
+    MinimumLevel = LogLevel.Info,
+    FilePath = "logs/application.log",
+});
 
 logger.Info("Application started");
 logger.Warning("Low disk space");
@@ -37,7 +38,29 @@ logger.Error("Could not connect to database", exception);
 ```
 
 The log directory is created if it does not exist. Each entry is appended
-and flushed immediately.
+and flushed immediately. Application code should depend on `ILogger`, which
+`Logger` implements.
+
+## Configuration
+
+| Option | Default | Description |
+|---|---|---|
+| `Enabled` | `true` | Turns logging off entirely (no file is created). |
+| `MinimumLevel` | `Info` | Entries below this level are discarded. |
+| `FilePath` | `logs/application.log` | Log file path; directories are created. |
+| `Format` | `Json` | `Json` (JSON Lines) or `Text`. |
+
+Invalid options throw `ArgumentException` when the logger is created. Details
+in [docs/configuration.md](docs/configuration.md).
+
+### Custom sinks
+
+`Logger` writes through the `ILogSink` interface. To send entries somewhere
+else, implement `ILogSink` and pass it in:
+
+```csharp
+ILogger logger = new Logger(mySink, minimumLevel: LogLevel.Info);
+```
 
 ## Log levels
 
@@ -118,7 +141,7 @@ Each stage is built, tested, documented and committed separately.
 - [x] `LogLevel`, `LogEntry`, `ILogger`, `ILogSink` and minimum-level filtering
 - [x] JSON (NDJSON) and plain-text formatting
 - [x] File sink
-- [ ] Configuration (`LoggerOptions`)
+- [x] Configuration (`LoggerOptions`)
 - [ ] Size-based file rotation
 - [ ] Thread safety verification
 - [ ] Write-error handling policy

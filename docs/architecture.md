@@ -37,6 +37,8 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 | `ILogger` | `LoggingLibrary` | What application code depends on: `IsEnabled(level)` and `Log(level, message, exception)`. |
 | `LoggerExtensions` | `LoggingLibrary` | `Debug`, `Info`, `Warning`, `Error`, `Critical` shortcuts over `ILogger.Log`. |
 | `Logger` | `LoggingLibrary` | Default `ILogger`: filters by minimum level, timestamps and forwards to one `ILogSink`. |
+| `LoggerOptions` | `LoggingLibrary` | Settings for a file logger, with defaults and `Validate()`. |
+| `LogFormat` | `LoggingLibrary` | `Json` or `Text`; selects the formatter. |
 | `ILogSink` | `LoggingLibrary.Sinks` | A destination for entries. Must be thread-safe. |
 | `ILogFormatter` | `LoggingLibrary.Formatting` | Turns a `LogEntry` into one line of text (no trailing line break). |
 | `JsonLogFormatter` | `LoggingLibrary.Formatting` | Single-line JSON object per entry (JSON Lines / NDJSON). |
@@ -59,6 +61,37 @@ caller ──► ILogger ──► Logger ──► ILogSink ──► (concrete
 - **`LogEntry`** is a sealed class with read-only properties instead of a
   positional record, so fields (for example structured properties) can be
   added later without breaking callers.
+
+### Creating a logger
+
+`Logger` has two constructors:
+
+- `Logger(LoggerOptions)` — the common case. Validates the options and, if
+  logging is enabled, creates a `FileLogSink` with the formatter selected by
+  `Format`. The logger **owns** that sink and closes it in `Dispose()`.
+- `Logger(ILogSink, minimumLevel, timeProvider)` — for custom sinks and tests.
+  The caller owns the sink; `Logger.Dispose()` does not dispose it.
+
+`LoggerOptions` is a plain class with settable properties and defaults, so it
+works with object initializers and can be bound from configuration. The
+logger copies the values it needs, so mutating the options later has no
+effect.
+
+When `Enabled` is `false` no sink is created: `IsEnabled` returns `false`
+for every level and calls cost one null check.
+
+### Log flow
+
+```text
+logger.Error("Database connection failed", ex)
+  └─ LoggerExtensions.Error  →  Logger.Log(Error, message, ex)
+       ├─ IsEnabled(Error)?  no → return (nothing allocated)
+       ├─ new LogEntry(TimeProvider.GetUtcNow(), Error, message, ex)
+       └─ ILogSink.Write(entry)                       (FileLogSink)
+            ├─ ILogFormatter.Format(entry) → string   (outside the lock)
+            ├─ UTF-8 encode + "\n"
+            └─ lock { write bytes; flush }
+```
 
 ### Log levels
 
