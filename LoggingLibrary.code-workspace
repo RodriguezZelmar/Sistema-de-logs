@@ -1,0 +1,21 @@
+{
+  // Doble clic (o "Archivo > Abrir área de trabajo desde archivo…") abre el proyecto en VS Code.
+  // Las tareas, la depuración y las extensiones recomendadas están en la carpeta .vscode.
+  "folders": [
+    {
+      "name": "LoggingLibrary",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "dotnet.defaultSolution": "LoggingLibrary.slnx"
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csdevkit",
+      "ms-dotnettools.csharp",
+      "editorconfig.editorconfig",
+      "bierner.markdown-mermaid"
+    ]
+  }
+}

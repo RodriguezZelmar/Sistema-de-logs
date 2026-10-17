@@ -1,0 +1,19 @@
+{
+  // Ejecutar y depurar (F5).
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Ejemplo de la librería (consola)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/samples/LoggingLibrary.Sample/bin/Debug/net10.0/LoggingLibrary.Sample.dll",
+      "cwd": "${workspaceFolder}/samples/LoggingLibrary.Sample",
+      "console": "integratedTerminal",
+      "stopAtEntry": false,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  ]
+}

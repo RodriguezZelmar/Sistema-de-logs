@@ -180,6 +180,14 @@ dotnet build
 dotnet test
 ```
 
+## Working in VS Code
+
+Open `LoggingLibrary.code-workspace` (double-click it, or `code LoggingLibrary.code-workspace`) and accept the recommended extensions
+(C# Dev Kit, EditorConfig, Mermaid). The shared `.vscode/` folder provides:
+
+- **Ctrl+Shift+B** — build the solution (`build` task); **Terminal → Run Task…** also offers `test`, `clean` and more.
+- **F5** — builds and debugs the console sample (`samples/LoggingLibrary.Sample`), so breakpoints inside the library are hit.
+
 ## Sample application
 
 [`samples/LoggingLibrary.Sample`](samples/LoggingLibrary.Sample/Program.cs) is
